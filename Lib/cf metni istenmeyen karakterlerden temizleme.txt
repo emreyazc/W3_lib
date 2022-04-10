@@ -1,0 +1,10 @@
+<cfset result = reReplace(result,"//","","ALL")>
+
+-------------------------------------------------------------------------------------
+
+message = ReReplaceNoCase(message,"<[^>]*>","","ALL"); //tag temizle
+
+REPLACE VE REPLACENOCASE fonksiyonları
+
+
+https://helpx.adobe.com/coldfusion/cfml-reference/coldfusion-functions/functions-m-r/rereplacenocase.html
