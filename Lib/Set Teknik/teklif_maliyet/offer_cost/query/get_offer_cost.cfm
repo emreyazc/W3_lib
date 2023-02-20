@@ -1,0 +1,31 @@
+﻿<cfquery name="GET_OFFER_COST" datasource="#DSN3#">
+    SELECT
+        OFFER_COST_ID,
+        OFFER_COST_STATUS,
+        OFFER_COST_STAGE,
+        OFFER_COST_NUMBER,
+        OFFER_COST_HEAD,
+        OFFER_COST_DATE,
+        COMPANY_ID,
+        PARTNER_ID,
+        PROJECT_ID,
+        RECORD_DATE,
+        RECORD_EMP,
+        UPDATE_DATE,
+        UPDATE_EMP,
+        OFFER_COST_DETAIL,
+        PRODUCT_ID,
+        STOCK_ID,
+        IS_TREE,
+        SALES_EMP,
+        INTERNAL_ID,
+        IS_OFFER,
+        OFFER_ID,
+        SEMI_PRODUCT_OFFER_ID,
+        CUMULATIVE_OFFER_ID,
+        SEMI_AND_NON_GROUP_OFFER_ID
+    FROM
+        OFFER_COST
+    WHERE
+        OFFER_COST_ID = #attributes.offer_cost_id#
+</cfquery>
