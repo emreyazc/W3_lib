@@ -1,0 +1,2 @@
+- Projeleri aşamalarına göre sütunlara bölerek getirir. 
+- Bir proje kartını bir sütundan diğerine sürüklediğimizde projenin aşaması da değişmiş oluyor.

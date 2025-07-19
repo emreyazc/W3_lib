@@ -1,0 +1,6 @@
+- Bu örnek şunu gösterir. 
+	- send.cfm de öncelikle bir ORDERS tablosu açar ve bunun içine veri yazar.
+	- client.cfm ORDERS tablosundaki Şehir kolonuna göre siparişleri gösterir.
+
+Not : Application.cfc de yeni bir kanal eklendiğinde aktif olması için coldfusion uygulamasını restart etmek gerekiyor.
+Not 2 : send.cfm ve dashboard.cfm aynı dizinde bulunmalıdır.

@@ -1,0 +1,8 @@
+- Application.cfc de soketkanal adında yeni bir kanal açıldı.
+- send.cfm de kanaldan bir mesaj gönderiyoruz.
+- dashboard.cfm de ise bu mesajı görüntülüyoruz.
+
+Not : Application.cfc de yeni bir kanal eklendiğinde aktif olması için coldfusion uygulamasını restart etmek gerekiyor.
+Not 2 : send.cfm ve dashboard.cfm aynı dizinde bulunmalıdır.
+
+İşin özü şu, send.cfm de yazdığımız veriyi diğer tarafta görmek için istediğimiz mesajı yazıp send.cfm sayfasını yeniliyoruz ve dashboard.cfm sayfasını hiç yenilemeden mesajın değiştiğini görüyoruz.

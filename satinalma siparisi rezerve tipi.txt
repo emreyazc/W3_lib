@@ -1,0 +1,8 @@
+	UPDATE
+		wrk_markaled.wrk_markaled_2.SETUP_BASKET_ROWS
+	SET
+		IS_SELECTED = 1,
+		TITLE_NAME = 'Rezerve Tipi'
+	WHERE
+		TITLE LIKE '%reserve_type%' AND
+		BASKET_ID = 6
