@@ -1,0 +1,3 @@
+- holistic_live_dashboard.cfm bizim ana sayfamız. Burası bir fuseaction (detaylar holistic_live_dashboard.PNG de).
+- orders_graph.cfm, bizim grafik dosyamız. diğer tüm canlı grafikler içinde bu şekilde dosya olacak.
+- getOrderCityCount.cfm dosyası orders_graph.cfm in query dosyası gibi düşünülebilir. Grafik buradaki sorguyu gösteriyor.

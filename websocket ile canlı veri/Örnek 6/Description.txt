@@ -1,0 +1,4 @@
+- Kullanıcıya özel widget ekranı. Widget tasarımını kaydetme özelliği.
+- Widgetları, tanımlandığı sql tablosundan çekiyoruz artık.
+- İki farklı widget.
+- Her iki widget da canlı çalışıyor.
