@@ -1,0 +1,382 @@
+# Workcube Obje Güncelleme Sonrası Menü JSON Cache Temizliği Prosedürü
+
+## 1. Amaç
+
+Workcube’de yeni bir obje eklendiğinde veya mevcut obje güncellendiğinde, kullanıcı menüsünde ve holistic menü aramasında eski JSON cache nedeniyle objenin görünmemesi sorununu kalıcı olarak çözmek.
+
+Örnek sorun:
+
+```txt
+WRK_OBJECTS tablosunda obje aktif ve menüde görünebilir durumda.
+Ancak userGroup_jelibon_menu_tr_87.json eski kaldığı için menü aramasında obje görünmüyor.
+```
+
+## 2. Sorunun Kaynağı
+
+Workcube sol menü / holistic arama tarafı, objeleri doğrudan her seferinde `WRK_OBJECTS` tablosundan okumuyor.
+
+Bunun yerine aşağıdaki gibi kullanıcı grubu bazlı JSON dosyalarını kullanıyor:
+
+```txt
+D:\W3\FILES\PROD\documents\personal_settings\userGroup_jelibon_menu_tr_87.json
+D:\W3\FILES\PROD\documents\personal_settings\userGroup_watomic_menu_tr_87.json
+```
+
+Bu dosyalar eski kaldığında, `WRK_OBJECTS` tarafında obje doğru olsa bile menüde görünmeyebiliyor.
+
+Örnek:
+
+```txt
+WRK_OBJECTS:
+HEAD = Mobil Talep
+FULL_FUSEACTION = purchase.mobile_demand
+IS_ACTIVE = 1
+IS_MENU = 1
+MODULE_NO = 12
+
+Ama JSON içinde yoksa menü aramasında görünmez.
+```
+
+## 3. Kontrol Edilecek İlk Şeyler
+
+Önce objenin gerçekten doğru tanımlandığını kontrol et:
+
+```sql
+SELECT
+    WRK_OBJECTS_ID,
+    HEAD,
+    FULL_FUSEACTION,
+    IS_ACTIVE,
+    IS_MENU,
+    MODULE_NO,
+    RECORD_DATE,
+    UPDATE_DATE
+FROM WRK_OBJECTS
+WHERE FULL_FUSEACTION = 'purchase.mobile_demand';
+```
+
+Beklenen durum:
+
+```txt
+IS_ACTIVE = 1
+IS_MENU = 1
+MODULE_NO doğru modül numarası
+FULL_FUSEACTION doğru
+HEAD doğru
+```
+
+## 4. Menü JSON Dosyasını Bulma
+
+Tarayıcı console’dan aktif kullanılan JSON dosyasını bulmak için:
+
+```js
+performance.getEntriesByType("resource")
+    .filter(x => x.name.includes("userGroup_jelibon_menu") || x.name.includes("userGroup_watomic_menu"))
+    .map(x => x.name)
+```
+
+Örnek sonuç:
+
+```txt
+https://catalyst.ada-shipyard.com/documents/personal_settings/userGroup_jelibon_menu_tr_87.json?v=...
+```
+
+Bu durumda fiziksel dosya:
+
+```txt
+D:\W3\FILES\PROD\documents\personal_settings\userGroup_jelibon_menu_tr_87.json
+```
+
+## 5. JSON İçinde Obje Var mı Kontrolü
+
+PowerShell ile:
+
+```powershell
+Select-String `
+    -Path "D:\W3\FILES\PROD\documents\personal_settings\userGroup_jelibon_menu_tr_87.json" `
+    -Pattern "purchase.mobile_demand","Mobil Talep"
+```
+
+Sonuç dönmüyorsa obje JSON cache içinde yoktur.
+
+## 6. Ekleme ve Güncelleme Dosyalarının Davranışı
+
+Obje ekleme dosyası:
+
+```txt
+add_fuseaction.cfm
+```
+
+Bu dosyada obje eklendikten sonra `personal_settings` altındaki `userGroup*` dosyaları zaten siliniyor.
+
+Bu nedenle obje ekleme tarafında cache temizliği vardır.
+
+Sorun güncelleme tarafındadır.
+
+Obje güncelleme dosyası:
+
+```txt
+update_fuseaction.cfm
+```
+
+Bu dosyada `UPDATE WRK_OBJECTS` çalıştıktan sonra menü JSON cache temizliği yoksa, obje güncellense bile JSON eski kalabilir.
+
+## 7. Kalıcı Çözüm
+
+`update_fuseaction.cfm` içinde ana `UPDATE WRK_OBJECTS` sorgusunun hemen altına cache temizleme bloğu eklenmelidir.
+
+Doğru konum:
+
+```cfm
+<cfquery name="add_wrk_objects" datasource="#DSN#" result="xxx">
+    UPDATE
+        WRK_OBJECTS
+    SET
+        ...
+    WHERE
+        WRK_OBJECTS_ID = #attributes.woid#
+</cfquery>
+
+<!--- CACHE TEMİZLEME BLOĞU BURAYA GELECEK --->
+
+<!--- HOLISTIC CODES --->
+```
+
+## 8. Eklenen Cache Temizleme Bloğu
+
+```cfm
+<!--- WRK_OBJECTS güncellendiğinde holistic menü JSON cache eski kalmasın --->
+<cftry>
+    <cfif isDefined("upload_folder") AND len(upload_folder)>
+        <cfset menuCacheDir = "#upload_folder#personal_settings#dir_seperator#">
+
+        <cfif DirectoryExists(menuCacheDir)>
+            <cfdirectory 
+                directory="#menuCacheDir#" 
+                name="GET_MENU_CACHE_FILES" 
+                filter="userGroup_*_menu_*.json" 
+                action="list" 
+                mode="777">
+
+            <cfoutput query="GET_MENU_CACHE_FILES">
+                <cftry>
+                    <cffile 
+                        action="delete" 
+                        file="#menuCacheDir##GET_MENU_CACHE_FILES.name#" 
+                        mode="777">
+                    <cfcatch></cfcatch>
+                </cftry>
+            </cfoutput>
+        </cfif>
+    </cfif>
+
+    <cfcatch>
+        <!--- Cache temizliği hata alsa bile obje güncelleme işlemi bozulmasın --->
+    </cfcatch>
+</cftry>
+```
+
+## 9. Neden `userGroup_*_menu_*.json` Siliniyor?
+
+Menü araması özellikle şu dosyalardan beslendiği için:
+
+```txt
+userGroup_jelibon_menu_tr_87.json
+userGroup_watomic_menu_tr_87.json
+```
+
+Bu nedenle sadece menü JSON cache dosyalarını hedeflemek yeterlidir.
+
+Daha geniş temizlik gerekirse filtre şu yapılabilir:
+
+```cfm
+filter="userGroup*"
+```
+
+Ancak mevcut sorun özelinde kontrollü çözüm:
+
+```cfm
+filter="userGroup_*_menu_*.json"
+```
+
+şeklindedir.
+
+## 10. Güncelleme Öncesi Kontrol
+
+PowerShell:
+
+```powershell
+$dir = "D:\W3\FILES\PROD\documents\personal_settings"
+
+Get-ChildItem $dir -Filter "userGroup*" |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object Name, LastWriteTime, Length |
+    Format-Table -Auto
+```
+
+Özellikle ilgili dosyaya bak:
+
+```powershell
+Get-Item "D:\W3\FILES\PROD\documents\personal_settings\userGroup_jelibon_menu_tr_87.json" |
+    Select-Object Name, LastWriteTime, Length
+```
+
+## 11. Güncelleme Öncesi Snapshot Alma
+
+```powershell
+$dir = "D:\W3\FILES\PROD\documents\personal_settings"
+
+Get-ChildItem $dir -Filter "userGroup*" |
+    Select-Object Name, LastWriteTime, Length |
+    Export-Csv "C:\userGroup_before.csv" -NoTypeInformation -Encoding UTF8
+```
+
+## 12. Test İçin Obje Güncelleme
+
+Workcube üzerinden ilgili obje açılır.
+
+Örnek:
+
+```txt
+WRK_OBJECTS_ID = 16444
+HEAD = Mobil Talep
+FULL_FUSEACTION = purchase.mobile_demand
+```
+
+Objede küçük ve kontrollü bir değişiklik yapılır.
+
+Örnek:
+
+```txt
+VERSION
+DETAIL
+HEAD
+IS_MENU
+IS_ACTIVE
+MODULE_NO
+```
+
+gibi alanlardan biri güncellenebilir.
+
+Kaydetme sonrası cache temizleme bloğunun çalışması beklenir.
+
+## 13. Güncelleme Sonrası Kontrol
+
+PowerShell:
+
+```powershell
+$dir = "D:\W3\FILES\PROD\documents\personal_settings"
+
+Get-ChildItem $dir -Filter "userGroup*" |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object Name, LastWriteTime, Length |
+    Format-Table -Auto
+```
+
+İlgili dosya yeniden oluşmuş veya güncel saatle yazılmış olmalıdır.
+
+Örnek başarılı sonuç:
+
+```txt
+Önce:
+userGroup_jelibon_menu_tr_87.json
+7/6/2026 2:53:42 PM
+609715 byte
+
+Sonra:
+userGroup_jelibon_menu_tr_87.json
+7/6/2026 2:58:23 PM
+609716 byte
+```
+
+Bu, JSON cache dosyasının yenilendiğini gösterir.
+
+## 14. Snapshot Karşılaştırması
+
+```powershell
+$before = Import-Csv "C:\userGroup_before.csv"
+
+$after = Get-ChildItem "D:\W3\FILES\PROD\documents\personal_settings" -Filter "userGroup*" |
+    Select-Object Name, LastWriteTime, Length
+
+Compare-Object $before $after -Property Name, LastWriteTime, Length
+```
+
+Yorumlama:
+
+```txt
+<= eski snapshot tarafındaki kayıt
+=> güncelleme sonrası mevcut kayıt
+```
+
+Aynı dosya eski tarih ile `<=`, yeni tarih ile `=>` görünüyorsa dosya yenilenmiştir.
+
+## 15. Obje JSON İçinde Var mı Kontrolü
+
+```powershell
+Select-String `
+    -Path "D:\W3\FILES\PROD\documents\personal_settings\userGroup_jelibon_menu_tr_87.json" `
+    -Pattern "purchase.mobile_demand","Mobil Talep"
+```
+
+Beklenen örnek içerik:
+
+```txt
+WRK_OBJECTS_ID: 16444
+FUSEACTION: purchase.mobile_demand
+MODULE_NO: 12
+MODULE_TITLE: Satınalma
+OBJECT_TITLE: Mobil Talep
+```
+
+Bu sonuç dönüyorsa obje artık menü JSON cache içine girmiştir.
+
+## 16. Son Kullanıcı Kontrolü
+
+Workcube içinde menü aramasına obje adı yazılır.
+
+Örnek:
+
+```txt
+Mobil Talep
+```
+
+Beklenen sonuç:
+
+```txt
+Mobil Talep menü aramasında görünür.
+```
+
+## 17. Başarılı Test Kriterleri
+
+Aşağıdaki üç madde sağlanıyorsa işlem başarılıdır:
+
+```txt
+1. Obje güncellemesi sonrası userGroup_jelibon_menu_tr_87.json güncel tarihle yeniden oluştu.
+2. JSON içinde ilgili FULL_FUSEACTION ve OBJECT_TITLE göründü.
+3. Workcube menü aramasında obje görünür hale geldi.
+```
+
+## 18. Sonuç
+
+Obje ekleme tarafında JSON cache temizliği zaten vardı.
+
+Eksik olan taraf obje güncelleme dosyasıydı.
+
+`update_fuseaction.cfm` içinde `UPDATE WRK_OBJECTS` sorgusunun hemen altına eklenen cache temizleme bloğu ile sorun kalıcı olarak çözülmüştür.
+
+Bundan sonra obje güncellendiğinde menü JSON cache eski kalmayacak, kullanıcı menüsü ve holistic arama güncel objeyi gösterecektir.
+
+Kısa Özet
+
+Bu çalışmada Workcube’de güncellenen bir objenin menü aramasında görünmemesi problemi incelendi.
+
+Sorunun nedeni, WRK_OBJECTS tablosunda obje doğru ve aktif olmasına rağmen menü aramasının doğrudan veritabanını değil, documents/personal_settings altındaki kullanıcı grubu bazlı JSON cache dosyalarını kullanmasıdır.
+
+Örnek problemde Mobil Talep objesi WRK_OBJECTS tarafında aktifti ve IS_MENU = 1 durumundaydı. Ancak userGroup_jelibon_menu_tr_87.json eski kaldığı için menü aramasında görünmüyordu.
+
+Obje ekleme dosyası olan add_fuseaction.cfm içinde cache temizliği zaten vardı. Eksik olan taraf obje güncelleme dosyasıydı.
+
+Çözüm olarak update_fuseaction.cfm içinde ana UPDATE WRK_OBJECTS sorgusunun hemen altına menü JSON cache temizleme bloğu eklendi. Bu blok userGroup_*_menu_*.json dosyalarını siler. Kullanıcı menüyü tekrar açtığında Workcube bu JSON dosyalarını yeniden üretir.
+
+Test sonucunda userGroup_jelibon_menu_tr_87.json dosyasının güncel saatle yeniden oluştuğu, Mobil Talep objesinin JSON içine geldiği ve menü aramasında görünür hale geldiği doğrulandı.
